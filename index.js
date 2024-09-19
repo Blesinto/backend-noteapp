@@ -3,13 +3,11 @@ require('dotenv').config();
 const config = require('./config.js');
 
 const mongoose = require('mongoose');
-const bcrypt = require('bcrypt');
 
 mongoose.connect(config.connectionString);
 
 const User = require('./models/user.model'); // Capitalize the model name for convention
 const Note = require('./models/note.model');
-// const Quiz = require('./models/quiz.model');
 
 const express = require('express');
 const cors = require('cors');
@@ -27,55 +25,17 @@ app.use(express.json());
 app.use(
   cors({
     origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
   })
 );
 
-// ============= new code =============================================
+app.get('/', (req, res) => {
+  res.json({ data: 'hello' });
+});
 
-// app.post('/create-account', async (req, res) => {
-//   const { fullName, email, password, role } = req.body; // Accept 'role' in the request body
+// Backend ready
 
-//   // Validate input fields
-//   if (!fullName || !password || !email || !role) {
-//     return res
-//       .status(400)
-//       .json({ error: true, message: 'All fields are required' });
-//   }
-
-//   // Check if the user already exists
-//   const isUser = await User.findOne({ email });
-//   if (isUser) {
-//     return res.json({ error: true, message: 'User already exists' });
-//   }
-
-//   // Ensure role is either 'admin' or 'student'
-//   if (role !== 'admin' && role !== 'student') {
-//     return res.status(400).json({ error: true, message: 'Invalid role' });
-//   }
-
-//   // Create new user with role
-//   const newUser = new User({ fullName, email, password, role });
-//   await newUser.save();
-
-//   // Generate JWT token with role
-//   const accessToken = jwt.sign(
-//     { id: newUser._id, role: newUser.role },
-//     process.env.ACCESS_TOKEN_SECRET,
-//     { expiresIn: '10h' }
-//   );
-
-//   // Send response
-//   return res.json({
-//     error: false,
-//     user: newUser,
-//     accessToken,
-//     message: 'Registration Successful',
-//   });
-// });
-
-// creat account
-
-// create account
+// Create Account
 app.post('/create-account', async (req, res) => {
   console.log(req.body);
   const { fullName, email, password, registrationType } = req.body;
@@ -150,90 +110,51 @@ app.post('/create-account', async (req, res) => {
   }
 });
 
-// creat Quiz
-app.get('/get-quiz-questions', async (req, res) => {
-  const questions = [
-    {
-      question: 'What is the capital of France?',
-      options: [
-        { optionText: 'Berlin', isCorrect: false },
-        { optionText: 'Madrid', isCorrect: false },
-        { optionText: 'Paris', isCorrect: true },
-        { optionText: 'Rome', isCorrect: false },
-      ],
-    },
-    {
-      question: 'Who developed the theory of relativity?',
-      options: [
-        { optionText: 'Isaac Newton', isCorrect: false },
-        { optionText: 'Albert Einstein', isCorrect: true },
-        { optionText: 'Galileo Galilei', isCorrect: false },
-        { optionText: 'Nikola Tesla', isCorrect: false },
-      ],
-    },
-    {
-      question: 'Which planet is known as the Red Planet?',
-      options: [
-        { optionText: 'Earth', isCorrect: false },
-        { optionText: 'Mars', isCorrect: true },
-        { optionText: 'Jupiter', isCorrect: false },
-        { optionText: 'Saturn', isCorrect: false },
-      ],
-    },
-  ];
-
-  try {
-    res.status(200).json(questions); // Return the questions array
-  } catch (error) {
-    res.status(500).json({
-      error: true,
-      message: 'Internal server error',
-    });
-  }
-});
-
-// Login
+// login
 app.post('/login', async (req, res) => {
+  console.log('hekko word');
   const { email, password } = req.body;
 
-  // Validate input fields
+  // Check if email and password are provided
   if (!email || !password) {
-    return res.status(400).json({
-      error: true,
-      message: 'Email and password are required',
-    });
+    return res
+      .status(400)
+      .json({ error: true, message: 'Email and password are required' });
   }
 
   try {
-    // Find the user by email, including their role
-    const userInfo = await User.findOne({ email }).select(
-      'email password role'
-    ); // Explicitly select fields
+    // Find the user by email
+    const userInfo = await User.findOne({ email });
+    if (!userInfo) {
+      return res.status(400).json({ error: true, message: 'User not found' });
+    }
 
-    // Check if user exists and if the password matches
-    if (!userInfo || !(await bcrypt.compare(password, userInfo.password))) {
+    // Check if the email and password match
+    if (userInfo.email === email && userInfo.password === password) {
+      // Include the role in the JWT payload
+      const user = { id: userInfo._id, role: userInfo.role };
+
+      // Generate the JWT token with role
+      const accessToken = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: '10h', // Adjust token expiration time
+      });
+
+      // Return the response with token and role
+      return res.json({
+        error: false,
+        message: 'Login successful',
+        accessToken, // Send the access token
+        role: userInfo.role, // Send the user's role
+      });
+    } else {
       return res.status(400).json({
         error: true,
         message: 'Invalid credentials',
       });
     }
-
-    // Generate JWT token with user id and role
-    const accessToken = jwt.sign(
-      { id: userInfo._id, role: userInfo.role }, // Include role in payload
-      process.env.ACCESS_TOKEN_SECRET,
-      { expiresIn: '10h' }
-    );
-
-    // Send the JWT token and role to the frontend
-    return res.json({
-      error: false,
-      message: 'Login successful',
-      accessToken, // Send the token
-      role: userInfo.role, // Send the role
-    });
   } catch (error) {
-    console.error(error); // Log error for debugging
+    // Handle any errors
+    console.error(error);
     return res.status(500).json({
       error: true,
       message: 'Internal server error',
@@ -241,194 +162,206 @@ app.post('/login', async (req, res) => {
   }
 });
 
-// Add Notes
+// ADD notes
 app.post(
   '/add-notes',
   authenticateToken,
   upload.single('file'),
   async (req, res) => {
     const { title, content, tags } = req.body;
-    const { user } = req.user;
 
-    if (!title || !content) {
+    const { user } = req;
+
+    if (!title) {
       return res
         .status(400)
-        .json({ error: true, message: 'Title and content are required' });
+        .json({ error: true, message: 'Title is required' });
+    }
+    if (!content) {
+      return res
+        .status(400)
+        .json({ error: true, message: 'content is required' });
     }
 
-    let noteData = { title, content, tags: tags || [], userId: user._id };
+    let readyData;
 
     if (req.file) {
       const result = await cloudinaryUpload.uploader.upload(req.file.path, {
-        resource_type: 'auto',
+        resource_type: 'auto', // This allows any file type to be uploaded
       });
-      noteData.fileUrl = result.url;
-      noteData.fileExtension = req.file.originalname.split('.').pop();
+
+      const originalFile = req.file.originalname.split('.');
+      let fileExtention = originalFile[originalFile.length - 1];
+
+      readyData = {
+        title,
+        content,
+        tags: tags || [],
+        fileUrl: result.url,
+        fileExtention: fileExtention,
+        userId: user._id,
+      };
+    } else {
+      readyData = {
+        title,
+        content,
+        tags: tags || [],
+        userId: user._id,
+      };
     }
 
+    // const fileUrl = `${result.url}.${fileExtention}`;
+
     try {
-      const note = new Note(noteData);
+      const note = new Note(readyData);
       await note.save();
+
       return res.json({
         error: false,
         note,
-        message: 'Note added successfully',
+        message: 'Note add Successfully',
       });
     } catch (error) {
-      return res
-        .status(500)
-        .json({ error: true, message: 'Internal server error' });
+      return res.status(500).json({
+        error: true,
+        message: 'Internal server error',
+      });
     }
   }
 );
 
-// Edit Note
+// edit note
 app.put('/edit-note/:noteId', authenticateToken, async (req, res) => {
-  const { noteId } = req.params;
-  const { title, content, tags, isPinned } = req.body;
-  const { user } = req.user;
-
-  if (!title && !content && !tags) {
+  const noteId = req.params.noteId;
+  const { title, content} = req.body;
+  const user = req.user;
+console.log(user)
+  if (!title && !content) {
     return res
       .status(400)
       .json({ error: true, message: 'No changes provided' });
   }
-
   try {
     const note = await Note.findOne({ _id: noteId, userId: user._id });
     if (!note) {
-      return res.status(404).json({ error: true, message: 'Note not found' });
+      return res.status(400).json({ error: true, message: 'Note not found' });
     }
-
     if (title) note.title = title;
     if (content) note.content = content;
     if (tags) note.tags = tags;
-    if (isPinned) note.isPinned = isPinned;
 
     await note.save();
-    return res.json({
-      error: false,
-      note,
-      message: 'Note updated successfully',
-    });
+    return res.json({ error: false, note, message: 'Note added sucessfully' });
   } catch (error) {
     return res
-      .status(500)
-      .json({ error: true, message: 'Internal server error' });
+      .status(400)
+      .json({ error: true, message: 'internal server error' });
   }
 });
 
-// Get All Notes
-app.get('/get-all-notes', async (req, res) => {
+// Get All notes
+app.get('/get-all-notes/', async (req, res) => {
+  // const { user } = req.user;
   try {
     const notes = await Note.find({});
+
+    // console.log(notes);
     return res.json({
       error: false,
       notes,
       message: 'All notes retrieved successfully',
     });
   } catch (error) {
-    return res
-      .status(500)
-      .json({ error: true, message: 'Internal server error' });
+    return res.status(500).json({
+      error: true,
+      message: 'internal server error',
+    });
   }
 });
 
-// Get Single Note
-app.get('/get-note/:id', async (req, res) => {
+// Get one notes
+app.get('/get-all-notes/:id', async (req, res) => {
+  // const { user } = req.user;
   try {
     const note = await Note.findById(req.params.id);
+
+    // console.log(notes);
     return res.json({
       error: false,
       note,
-      message: 'Note retrieved successfully',
+      message: 'All notes retrieved successfully',
     });
   } catch (error) {
-    return res
-      .status(500)
-      .json({ error: true, message: 'Internal server error' });
+    return res.status(500).json({
+      error: true,
+      message: 'internal server error',
+    });
   }
 });
+// Delete note
+app.delete('/delete-note/:noteId/', authenticateToken, async (req, res) => {
+  console.log('here ooo');
+  const noteId = req.params.noteId;
+  // console.log(req.user);
+  const { user } = req;
+  // let userId = String(user._id);
 
-// Delete Note
-app.delete('/delete-note/:noteId', authenticateToken, async (req, res) => {
-  const { noteId } = req.params;
-  const { user } = req.user;
+  // console.log(String(user._id));
 
   try {
-    const note = await Note.findOne({ _id: noteId, userId: user._id });
+    const note = await Note.findOne({ _id: noteId });
+    console.log(note);
     if (!note) {
       return res.status(404).json({ error: true, message: 'Note not found' });
     }
-    await Note.deleteOne({ _id: noteId, userId: user._id });
-    return res.json({ error: false, message: 'Note deleted successfully' });
-  } catch (error) {
-    return res
-      .status(500)
-      .json({ error: true, message: 'Internal server error' });
-  }
-});
-
-// Search Notes
-app.get('/search-note', async (req, res) => {
-  const { query } = req.query;
-
-  if (!query) {
-    return res
-      .status(400)
-      .json({ error: true, message: 'Search query is required' });
-  }
-
-  try {
-    const matchingNotes = await Note.find({
-      $or: [
-        { title: { $regex: new RegExp(query, 'i') } },
-        { content: { $regex: new RegExp(query, 'i') } },
-      ],
-    });
-
-    if (matchingNotes.length === 0) {
+    if (String(user._id) !== String(note.userId)) {
       return res
-        .status(404)
-        .json({ error: true, message: 'No matching notes found' });
+        .status(401)
+        .json({ error: true, message: 'You cannot delete this note' });
     }
-
-    return res.status(200).json({ error: false, notes: matchingNotes });
+    await Note.deleteOne({ _id: noteId, userId: user._id });
+    return res.json({
+      error: true,
+      message: 'note deleted successfully',
+    });
   } catch (error) {
-    return res
-      .status(500)
-      .json({ error: true, message: 'Internal server error' });
+    console.log(error);
+    return res.status(500).json({
+      error: true,
+      message: 'internal server error',
+    });
   }
 });
 
-// Get User Info
+// Get user
 app.get('/get-user', authenticateToken, async (req, res) => {
   const { user } = req.user;
+  const isUser = await User.findOne({ _id: user._id });
 
-  try {
-    const isUser = await User.findById(user._id);
-    if (!isUser) {
-      return res.sendStatus(401);
-    }
-
-    return res.json({
-      user: {
-        fullName: isUser.fullName,
-        email: isUser.email,
-        _id: isUser._id,
-        createdOn: isUser.createdOn,
-      },
-    });
-  } catch (error) {
-    return res
-      .status(500)
-      .json({ error: true, message: 'Internal server error' });
+  if (!isUser) {
+    return res.sendStatus(401);
   }
+  return res.json({
+    user: {
+      fullName: isUser.fullName,
+      email: isUser.email,
+      '._id': isUser._id,
+      createdon: isUser.createdon,
+    },
+    message: '',
+  });
 });
 
-console.log(process.env.NODE_ENV);
-// Start server
-const PORT = process.env.NODE_ENV === 'development' ? 8000 : process.env.PORT;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
+app.listen(
+  process.env.NODE_ENV === 'development' ? 8000 : process.env.PORT,
+  () => {
+    console.log('listening on port 8000');
+  }
+);
 module.exports = app;
+
+// // Generate a random secret key
+// const crypto = require('crypto');
+// const secretKey = crypto.randomBytes(64).toString('hex');
+
+// console.log('Generated Secret Key:', secretKey);
