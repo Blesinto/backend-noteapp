@@ -70,13 +70,13 @@ app.post('/create-account', async (req, res) => {
     }
 
     // Hash the password for security
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // const hashedPassword = await bcrypt.hash(password, 10);
 
     // Create new user with hashed password and dynamically assigned role
     const newUser = new User({
       fullName,
       email,
-      password: hashedPassword,
+      password,
       role: role || 'student', // Assign role dynamically based on registration type
     });
 
@@ -93,7 +93,7 @@ app.post('/create-account', async (req, res) => {
     return res.status(201).json({
       error: false,
       user: {
-        id: newUser._id,
+        id: newUser?._id,
         fullName: newUser.fullName,
         email: newUser.email,
         role: newUser.role, // Ensure role is included in the response
