@@ -233,9 +233,9 @@ app.post(
 // edit note
 app.put('/edit-note/:noteId', authenticateToken, async (req, res) => {
   const noteId = req.params.noteId;
-  const { title, content} = req.body;
+  const { title, content } = req.body;
   const user = req.user;
-console.log(user)
+  console.log(user);
   if (!title && !content) {
     return res
       .status(400)
@@ -243,15 +243,26 @@ console.log(user)
   }
   try {
     const note = await Note.findOne({ _id: noteId, userId: user._id });
+    // if note not found
     if (!note) {
       return res.status(400).json({ error: true, message: 'Note not found' });
     }
-    if (title) note.title = title;
-    if (content) note.content = content;
-    if (tags) note.tags = tags;
-
-    await note.save();
-    return res.json({ error: false, note, message: 'Note added sucessfully' });
+    const updatedNotes = await Note.findOneAndUpdate(
+      {
+        _id: noteId,
+        userId: user._id,
+      },
+      {
+        ...req.body,
+      },
+      { new: true }
+    );
+    return res.json({
+      error: false,
+      success: true,
+      note: updatedNotes,
+      message: 'Note added sucessfully',
+    });
   } catch (error) {
     return res
       .status(400)
