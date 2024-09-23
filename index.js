@@ -93,7 +93,7 @@ app.post('/create-account', async (req, res) => {
     return res.status(201).json({
       error: false,
       user: {
-        id: newUser?._id,
+        id: newUser._id,
         fullName: newUser.fullName,
         email: newUser.email,
         role: newUser.role, // Ensure role is included in the response
